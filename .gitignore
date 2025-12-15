@@ -1,0 +1,18 @@
+# Datenbank-Dateien ignorieren
+*.db
+*.sqlite
+*.sqlite3
+
+# Python Cache ignorieren (Braucht niemand auf GitHub)
+__pycache__/
+*.pyc
+
+# IDE Einstellungen ignorieren (Deine VS Code Settings sind privat)
+.vscode/
+.idea/
+
+# Ignoriere alle Excel-Dateien im reports Ordner
+reports/*.xlsx
+
+# ABER: Ignoriere nicht eine spezielle Datei, damit der Ordner existiert
+!reports/.gitkeep
