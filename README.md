@@ -56,42 +56,17 @@ inventory-sql-pipeline/
 ├── 📂 data/                    # SQLite Database (Local storage)
 └── 📂 reports/                 # Generated Excel Output (Business Value)
 
-🚀 How to Run
+```
+## 🚀 How to Run
 
-This pipeline is designed to be idempotent (you can run it multiple times without breaking the state).
-1. Initialize Infrastructure
+This pipeline is designed to be **idempotent** (you can run it multiple times without breaking the state).
 
-First, create the tables and insert dummy data (simulating an ERP export). (Run the SQL files in setup/ via DBeaver or your SQL client).
-2. Build the Logic Layer
+### 1. Initialize Infrastructure
+First, create the tables and insert dummy data (simulating an ERP export).
+*(Run the SQL files in `setup/` via DBeaver or your SQL client)*.
 
+### 2. Build the Logic Layer
 Run the Python script to compile and create the SQL Views in the database.
-Bash
-
+```bash
 python scripts/init_db_views.py
-
-    Output: ✅ ERFOLG: View 'int_inventory_levels' wurde erstellt...
-
-3. Generate Reports
-
-Run the main application to extract data and build the Excel report.
-Bash
-
-python scripts/db_connection.py
-
-    Output: ✅ Report erfolgreich gespeichert (mit Autoscale): reports/dispo_bericht.xlsx
-
-🛠️ Tech Stack
-
-    Core: Python (Pandas, OpenPyXL), SQLite3
-
-    Concept: ELT (Extract, Load, Transform) via SQL Views
-
-    Tooling: VS Code, DBeaver
-
-    Key Libraries: pandas, openpyxl
-
-👨‍💻 About
-
-Built by Kilian Sender (Logistics Data Analyst & Systems Thinker). Focusing on bridging the gap between physical operations (Warehouse) and abstract data architecture (Code).
-
-    "The Industrial Master knows how the process works. The Data Architect knows why it breaks. I do both."
+```
