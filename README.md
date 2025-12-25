@@ -34,27 +34,24 @@ D -->|Generate| E[Excel Reports for Procurement]
 2. Setup Infrastructure
 
 Initialize the database schema and load dummy data:
-Bash
-
+```
 # Clean install of the database (Tables & Data)
 # Open DBeaver or run via CLI
 sqlite3 data/logistik_playground.db < setup/01_setup_schema.sql
 sqlite3 data/logistik_playground.db < setup/02_insert_dummy_data.sql
-
+```
 3. Deploy Business Logic
-
+```
 Deploy the View Layer (Schema Migration):
-Bash
-
 python scripts/init_db_views.py
-
+```
 4. Run the Pipeline
-
+```
 Generate the daily risk report:
 Bash
 
 python scripts/db_connection.py
-
+```
 Output: reports/dispo_bericht.xlsx will be generated.
 📈 Key Learnings & Patterns
 
