@@ -35,7 +35,8 @@ D -->|Generate| E[Excel Reports for Procurement]
 
 Initialize the database schema and load dummy data:
 # Clean install of the database (Tables & Data)
-# Open DBeaver or run via CLI
+
+## Open DBeaver or run via CLI
 ```
 sqlite3 data/logistik_playground.db < setup/01_setup_schema.sql
 sqlite3 data/logistik_playground.db < setup/02_insert_dummy_data.sql
