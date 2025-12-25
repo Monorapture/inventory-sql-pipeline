@@ -23,7 +23,7 @@ A[Raw Data / ERP] -->|Ingest| B(SQLite Database)
 B -->|dbt-style Modeling| C{SQL Views / Marts}
 C -->|Extract & Enrich| D[Python Orchestrator]
 D -->|Generate| E[Excel Reports for Procurement]
-
+```
 🛠️ Installation & Usage
 1. Prerequisites
 
