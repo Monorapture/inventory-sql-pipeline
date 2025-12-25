@@ -1,41 +1,85 @@
+/* ---------------------------------------------------------------------------
+   FILE: 09_toolbox_snippets.sql
+   AUTHOR: Kilian Sender
+   DESCRIPTION: 
+     A collection of reusable SQL patterns for logistics data analysis.
+     Includes templates for Window Functions, CTEs, and Aggregations.
+     Used as a quick reference for building robust data models.
+   ---------------------------------------------------------------------------
+*/
 
--- A. Die Basics (Fundament) --
+-- ===================================================
+-- 1. DATA RETRIEVAL & ALIASING
+-- Pattern: Renaming columns to match business terminology
+-- ===================================================
+SELECT 
+    mat_nr AS article_id,
+    bezeichnung AS article_name,
+    preis_eur AS unit_cost
+FROM artikel;
 
--- Befehl,Erklärung,Beispiel / Merksatz --
-SELECT,Spalten auswählen.,"""Zeig mir..."""
-FROM,Tabelle wählen.,"""...aus dem Regal..."""
-WHERE,Filtern vor dem Gruppieren.,"""...aber nur die Roten."""
-LEFT JOIN,"Tabellen verknüpfen. Behält alles von links, auch ohne Treffer rechts.","""Hol die Artikel, und wenn da, den Lieferanten dazu."""
-INNER JOIN,Tabellen verknüpfen. Nur Treffer auf beiden Seiten.,"""Nur Artikel, die auch einen Lieferanten haben."""
-ORDER BY,"Sortieren (ASC = A-Z, DESC = Z-A).","""Sortiere nach Preis absteigend."""
-LIMIT,Anzahl Zeilen begrenzen.,"""Zeig nur die Top 5."""
 
--- B. Data Cleaning & Logik (Der Quality-Check) --
+-- ===================================================
+-- 2. FILTERING LOGIC (PREDICATES)
+-- Pattern: Isolating specific segments (e.g., High-Value Items)
+-- ===================================================
+SELECT * FROM artikel
+WHERE preis_eur > 100 
+  AND kategorie = 'Elektro';
 
--- Befehl,Erklärung,Beispiel / Merksatz --
-COALESCE / IFNULL,Ersetzt NULL durch einen Wert.,"Der Airbag: IFNULL(preis, 0) -> Keine Rechenfehler."
-CASE WHEN,Wenn-Dann-Logik (If-Else).,"""Wenn Preis > 100 DANN 'Teuer' SONST 'Billig'."""
-CAST,Datentyp ändern (z.B. Text zu Zahl).,"""Mach aus dem Text '10' eine echte Zahl 10."""
-ABS,Absoluter Wert (Minuszeichen entfernen).,ABS(-50) wird 50. Wichtig für Mengengerüste.
 
--- C. Advanced Analytics (Window Functions) --
+-- ===================================================
+-- 3. AGGREGATION & DISTRIBUTION
+-- Pattern: Grouping data to analyze category density
+-- ===================================================
+SELECT 
+    kategorie AS category, 
+    COUNT(*) AS item_count,
+    ROUND(AVG(preis_eur), 2) AS avg_price
+FROM artikel
+GROUP BY kategorie;
 
--- Wichtig: Diese laufen erst im SELECT-Schritt, also NACH dem Filtern! --
 
--- Befehl,Erklärung,Beispiel / Merksatz --
-RANK() OVER ...,"Erstellt eine Rangliste (1, 2, 2, 4...).","""Wer ist der Teuerste?"""
-DENSE_RANK() OVER ...,"Wie Rank, aber ohne Lücken (1, 2, 2, 3...).","""Platzierung wie im Sport."""
-NTILE(n) OVER ...,Teilt Daten in n Klassen ein (Clustering).,"ABC-Analyse: NTILE(3) macht Low, Mid, High."
-LAG() OVER ...,Schaut auf die Zeile davor.,"Zeit-Check: ""Wann war die letzte Buchung?"""
-LEAD() OVER ...,Schaut auf die Zeile danach.,"""Wann kommt die nächste Buchung?"""
-PARTITION BY,Startet die Berechnung (Rang/Summe) für jede Gruppe neu.,"""Reset des Zählers pro Artikel."""
+-- ===================================================
+-- 4. WINDOW FUNCTIONS: CUMULATIVE SUM
+-- Business Case: Tracking inventory value buildup over time
+-- ===================================================
+SELECT 
+    buchungsdatum,
+    menge,
+    -- Calculates a running total ordered by date
+    SUM(menge) OVER (ORDER BY buchungsdatum) AS running_total_stock
+FROM bewegungen;
 
--- D. Architektur & Struktur --
 
--- Befehl,Erklärung,Beispiel / Merksatz --
-WITH ... AS (...),CTE (Common Table Expression). Temporäre Hilfstabelle.,"Die Zwiebel: ""Erst rechnen, dann filtern."""
-CREATE VIEW,Speichert eine Abfrage als virtuelle Tabelle dauerhaft.,"""Clean Code: Logik einmal bauen, immer nutzen."""
+-- ===================================================
+-- 5. WINDOW FUNCTIONS: RANKING
+-- Business Case: Identifying top-value items (e.g., for ABC Analysis)
+-- ===================================================
+SELECT 
+    bezeichnung, 
+    preis_eur,
+    -- Ranks items by price (1 = most expensive)
+    RANK() OVER (ORDER BY preis_eur DESC) AS price_rank
+FROM artikel;
 
--- E. Zeit-Berechnung (SQLite Spezifikum) --
--- Befehl,Erklärung,Beispiel / Merksatz --
-JULIANDAY(),Wandelt Datum in Zahl um (Tage seit 4713 v. Chr.).,"Nötig, um Tage zu subtrahieren: Tag_neu - Tag_alt."
+
+-- ===================================================
+-- 6. COMMON TABLE EXPRESSIONS (CTE)
+-- Pattern: Modularizing complex queries for better readability.
+-- Replaces nested subqueries with a linear logic flow.
+-- ===================================================
+
+-- Step 1: Define the temporary result set
+WITH high_value_items AS (
+    SELECT mat_nr, bezeichnung 
+    FROM artikel 
+    WHERE preis_eur > 500
+)
+
+-- Step 2: Use the result set in the main query
+SELECT 
+    h.bezeichnung, 
+    b.buchungsdatum, 
+    b.menge
+FROM bewegungen AS b

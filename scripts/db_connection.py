@@ -1,90 +1,128 @@
+"""
+---------------------------------------------------------------------------
+SCRIPT: db_connection.py
+TYPE: Application Layer / Orchestrator
+AUTHOR: Kilian Sender
+
+DESCRIPTION:
+  Executes the "Reorder Alert" pipeline (ELT Pattern).
+  1. EXTRACT: Fetches business logic from the SQL Mart layer.
+  2. TRANSFORM: Performs final calculations in Python (e.g., coverage %).
+  3. LOAD: Generates a formatted Excel report for procurement stakeholders.
+---------------------------------------------------------------------------
+"""
+
 import os
 import sqlite3
 import pandas as pd
+from openpyxl.utils import get_column_letter
 
-# ---------------------------------------------------------
-# 1. HILFSFUNKTION (Das Werkzeug)
-# ---------------------------------------------------------
-def get_sql_from_file(file_path):
-    """
-    Liest den Inhalt einer .sql Datei und gibt ihn als String zurück.
-    """
+# ==============================================================================
+# 1. CONFIGURATION (Infrastructure Settings)
+# ==============================================================================
+# Define base paths relative to this script
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Note: Adjust '..' if script is inside a 'scripts' folder, or remove if in root.
+# Assuming structure: /root/scripts/db_connection.py -> DB is in /root/data/
+PROJECT_ROOT = os.path.dirname(BASE_DIR) 
+
+DB_PATH = os.path.join(PROJECT_ROOT, "data", "logistik_playground.db")
+SQL_SOURCE_FILE = os.path.join(PROJECT_ROOT, "models", "marts", "alert_reorder.sql")
+REPORT_OUTPUT_DIR = os.path.join(PROJECT_ROOT, "reports")
+REPORT_FILENAME = "dispo_bericht.xlsx"
+
+
+# ==============================================================================
+# 2. HELPER FUNCTIONS (Toolbox)
+# ==============================================================================
+def load_sql_query(file_path):
+    """Reads SQL logic from a separate file to enforce Separation of Concerns."""
     if not os.path.exists(file_path):
-        raise FileNotFoundError(f"Fehler: Die Datei '{file_path}' wurde nicht gefunden!")
-        
+        raise FileNotFoundError(f"CRITICAL: SQL Model not found at {file_path}")
+    
     with open(file_path, 'r', encoding='utf-8') as f:
         return f.read()
 
-# ---------------------------------------------------------
-# 2. SETUP (Pfade definieren)
-# ---------------------------------------------------------
-db_path = "data/logistik_playground.db"
-sql_file_path = "models/marts/alert_reorder.sql" 
+def auto_adjust_excel_width(writer, sheet_name, df):
+    """
+    UX ENHANCEMENT:
+    Auto-scales Excel column widths based on content length.
+    Prevents stakeholders from seeing '#####' errors.
+    """
+    worksheet = writer.sheets[sheet_name]
+    for idx, col in enumerate(df.columns):
+        series = df[col]
+        # Calculate max length of data or header
+        max_len = max(
+            series.astype(str).map(len).max(),
+            len(str(col))
+        ) + 2  # Add padding
+        
+        # Apply width
+        worksheet.column_dimensions[get_column_letter(idx + 1)].width = max_len
 
-# ---------------------------------------------------------
-# 3. VERBINDUNG & ABLAUF
-# ---------------------------------------------------------
-conn = sqlite3.connect(db_path)
-print("Verbindung zur Datenbank hergestellt! 🔌")
 
-try:
-    # --- SCHRITT A: SQL LADEN ---
-    print(f"Lese SQL aus: {sql_file_path} ...")
-    sql_query = get_sql_from_file(sql_file_path)
-    
-    # Optional: Zur Kontrolle die ersten 100 Zeichen anzeigen
-    print(f"--- SQL geladen (Vorschau): ---\n{sql_query[:100]}...\n-------------------------------")
+# ==============================================================================
+# 3. MAIN PIPELINE (Orchestration)
+# ==============================================================================
+def main():
+    print("🚀 PIPELINE STARTED: Stockout Alert Report")
+    print(f"   Connecting to Database: {os.path.basename(DB_PATH)}")
 
-    # --- SCHRITT B: DATENBANK ABFRAGEN ---
-    df_kritisch = pd.read_sql(sql_query, conn)
-    
-    # --- SCHRITT C: ANALYSE (Nur wenn Daten da sind!) ---
-    if df_kritisch.empty:
-        print("⚠️ Keine kritischen Artikel gefunden. Report ist leer.")
-    else:
-        print("\n--- ERGEBNIS (Kritische Artikel) ---")
-        print(df_kritisch)
+    conn = None
+    try:
+        # --- STEP 1: CONNECT & EXTRACT ---
+        conn = sqlite3.connect(DB_PATH)
+        query = load_sql_query(SQL_SOURCE_FILE)
+        
+        print(f"   Executing SQL Model: {os.path.basename(SQL_SOURCE_FILE)}...")
+        df = pd.read_sql_query(query, conn)
+        
+        # --- STEP 2: TRANSFORM (Python Layer) ---
+        if df.empty:
+            print("   ⚠️  NOTICE: No critical items found. Inventory is healthy.")
+            return
 
-        # Bonus-Rechnung
-        df_kritisch['versorgung_prozent'] = (df_kritisch['aktueller_bestand'] / df_kritisch['sicherheitsbestand']) * 100
-        df_kritisch['versorgung_prozent'] = df_kritisch['versorgung_prozent'].round(1)
+        # Feature Engineering: Calculate 'Supply Coverage' (Versorgungsgrad)
+        # FIX: Nutzung der neuen Englischen Spaltennamen aus dem SQL Report!
+        df['supply_coverage_pct'] = df.apply(
+            lambda x: round((x['current_stock'] / x['safety_stock_threshold']) * 100, 1) 
+            if x['safety_stock_threshold'] > 0 else 0, axis=1
+        )
+        
+        # Business Logic: Filter for high priority (just to be safe)
+        row_count = len(df)
+        print(f"   ✅ Data Loaded: {row_count} critical items detected.")
 
-        print("\n--- ANALYSE MIT PYTHON-POWER ---")
-        print(df_kritisch[['bezeichnung', 'versorgung_prozent']])
-
-        # --- SCHRITT D: REPORT SPEICHERN ---
-        output_folder = "reports"
-        dateiname = "dispo_bericht.xlsx"
-
-        if not os.path.exists(output_folder):
-            os.makedirs(output_folder)
-            print(f"Ordner '{output_folder}' wurde erstellt.")
-
-        speicher_pfad = os.path.join(output_folder, dateiname)
-
-        with pd.ExcelWriter(speicher_pfad, engine='openpyxl') as writer:
-            sheet_name = 'Report'
-            df_kritisch.to_excel(writer, sheet_name=sheet_name, index=False)
+        # --- STEP 3: LOAD (Report Generation) ---
+        if not os.path.exists(REPORT_OUTPUT_DIR):
+            os.makedirs(REPORT_OUTPUT_DIR)
             
-            worksheet = writer.sheets[sheet_name]
-            for column in worksheet.columns:
-                max_length = 0
-                column_letter = column[0].column_letter
-                for cell in column:
-                    try:
-                        if len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
-                    except:
-                        pass
-                adjusted_width = (max_length + 2)
-                worksheet.column_dimensions[column_letter].width = adjusted_width
+        full_output_path = os.path.join(REPORT_OUTPUT_DIR, REPORT_FILENAME)
+        
+        print(f"   Generating Report: {REPORT_FILENAME}...")
+        
+        # Using Context Manager for safe file writing
+        with pd.ExcelWriter(full_output_path, engine='openpyxl') as writer:
+            sheet_name = 'Stockout_Alerts'
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+            
+            # UX Polish: Auto-format columns
+            auto_adjust_excel_width(writer, sheet_name, df)
 
-        print(f"✅ Report erfolgreich gespeichert (mit Autoscale): {speicher_pfad}")
+        print(f"🎉 SUCCESS: Report ready at '{full_output_path}'")
+        print("---------------------------------------------------------")
+        # Preview for the console user (Updated column names)
+        print(df[['article_name', 'supply_coverage_pct', 'deficit_quantity']].head())
+        
+    except Exception as e:
+        print(f"\n❌ CRITICAL ERROR: Pipeline failed.\n{e}")
+        raise
+    finally:
+        if conn:
+            conn.close()
+            print("   Database connection closed.")
 
-except Exception as e:
-    print(f"\n❌ FEHLER: Ein kritisches Problem ist aufgetreten:\n{e}")
-    # Hier endet das Programm sauber, ohne Folgefehler.
-
-finally:
-    conn.close()
-    print("\nVerbindung geschlossen.")
+# Entry Point
+if __name__ == "__main__":
+    main()

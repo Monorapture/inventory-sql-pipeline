@@ -1,18 +1,30 @@
-# Datenbank-Dateien ignorieren
+# ---------------------------------------------------------------------------
+# DATA & LOCAL STORAGE
+# ---------------------------------------------------------------------------
+# Exclude actual database files (Security & Size)
 *.db
 *.sqlite
 *.sqlite3
 
-# Python Cache ignorieren (Braucht niemand auf GitHub)
+# Exclude generated reports (Artifacts)
+reports/*.xlsx
+reports/*.csv
+# Keep the folder structure, even if empty
+!reports/.gitkeep
+!data/.gitkeep
+
+# ---------------------------------------------------------------------------
+# PYTHON INTERNALS
+# ---------------------------------------------------------------------------
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 
-# IDE Einstellungen ignorieren (Deine VS Code Settings sind privat)
+# ---------------------------------------------------------------------------
+# IDE / EDITOR CONFIGS
+# ---------------------------------------------------------------------------
 .vscode/
 .idea/
-
-# Ignoriere alle Excel-Dateien im reports Ordner
-reports/*.xlsx
-
-# ABER: Ignoriere nicht eine spezielle Datei, damit der Ordner existiert
-!reports/.gitkeep
+.DS_Store
